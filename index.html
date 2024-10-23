@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Do Re Mi</title>
+  <style>
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    h2 {
+      color: #ffffff;
+      margin-bottom: 10px;
+      text-align: center; /* Center the playlists title */
+    }
+
+    h1 {
+      color: #2E236C;
+      margin-bottom: 10px;
+      text-align: center; /* Center the main title */
+    }
+
+    .sidebar {
+      width: 33.33%; /* 1/3 of the page */
+      background-color: #17153B;
+      color: white;
+      padding: 20px;
+      box-sizing: border-box;
+      position: relative;
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    #playlist-title {
+      margin: 20px 0; /* Add some margin for spacing */
+    }
+
+    .container {
+      width: 66.67%; /* 2/3 of the page */
+      padding: 20px;
+      height: 100%;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+
+    .playlist {
+      margin-bottom: 20px;
+    }
+
+    .create-playlist-btn {
+      background-color: #433D8B;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 10px;
+      font-size: 20px;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    input, button {
+      display: block;
+      margin: 10px auto;
+      padding: 10px;
+      font-size: 16px;
+      width: 80%;
+    }
+
+    button {
+      background-color: #2E236C;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      padding: 10px;
+    }
+
+    button:hover {
+      background-color: #433D8B;
+    }
+
+    .result {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .song-details {
+      background-color: #fff;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      text-align: center;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+
+    img {
+      border-radius: 8px;
+    }
+
+    audio {
+      margin-top: 10px;
+      width: 100%;
+    }
+
+    .popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: white;
+      padding: 20px;
+      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+      border-radius: 8px;
+      width: 300px;
+      text-align: center;
+    }
+
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+
+    .search-section {
+      display: flex;
+      justify-content: center; /* Center horizontally */
+      align-items: center; /* Center vertically */
+      width: 100%;
+    }
+
+    .search-icon {
+      position: fixed;
+      top: 10px;
+      right: 20px;
+      font-size: 24px;
+      cursor: pointer;
+      display: none;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h2>Playlists</h2>
+    <div id="playlist-list"></div>
+    <button class="create-playlist-btn" onclick="showCreatePlaylistPopup()">+</button>
+  </div>
+
+  <div class="container">
+    <div class="search-section">
+      <h1>Do Re Mi</h1>
+      <span class="search-icon" id="search-icon" onclick="showSearch()">🔍</span>
+    </div>
+    <input type="text" id="song-input" placeholder="Enter song name or artist" />
+    <button onclick="searchSong()">Search</button>
+
+    <div class="result" id="result"></div>
+  </div>
+
+  <!-- Playlist Creation Popup -->
+  <div id="overlay" class="overlay" style="display: none;"></div>
+  <div id="playlist-popup" class="popup" style="display: none;">
+    <h3>Create New Playlist</h3>
+    <input type="text" id="new-playlist-name" placeholder="Playlist Name" />
+    <button onclick="createPlaylist()">Create</button>
+    <button onclick="hideCreatePlaylistPopup()">Cancel</button>
+  </div>
+
+  <!-- Add Song to Playlist Popup -->
+  <div id="playlist-add-popup" class="popup" style="display: none;">
+    <h3>Select Playlist</h3>
+    <select id="playlist-select"></select>
+    <button onclick="addToPlaylist()">Add to Playlist</button>
+    <button onclick="hideAddPlaylistPopup()">Cancel</button>
+  </div>
+
+  <script>
+    let currentAudio = null;  // Track currently playing audio
+    const playlists = {};     // Store playlists and songs
+    let currentSong = null;
+
+    async function searchSong() {
+      const query = document.getElementById('song-input').value;
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = "";  // Clear previous results
+
+      if (!query) {
+        resultDiv.innerHTML = "Please enter a song name or artist.";
+        return;
+      }
+
+      try {
+        const response = await fetch(`https://shazam.p.rapidapi.com/search?term=${query}&locale=en-US&offset=0&limit=5`, {
+          method: "GET",
+          headers: {
+            "X-RapidAPI-Key": "d7205a78b7msh45f6e40ed61b467p1ffc53jsnab9d1e832184",  // Replace with your RapidAPI key
+            "X-RapidAPI-Host": "shazam.p.rapidapi.com"
+          }
+        });
+
+        const data = await response.json();
+        if (data.tracks && data.tracks.hits.length > 0) {
+          const songs = data.tracks.hits.map(hit => hit.track);  // Get top songs
+          displaySongs(songs);  // Display the songs
+        } else {
+          resultDiv.innerHTML = "No results found.";
+        }
+      } catch (error) {
+        console.error(error);
+        resultDiv.innerHTML = "Error fetching song details.";
+      }
+    }
+
+    function displaySongs(songs) {
+      const resultDiv = document.getElementById('result');
+      resultDiv.innerHTML = "";  // Clear current songs
+
+      songs.forEach(song => {
+        const songDetails = document.createElement('div');
+        songDetails.classList.add('song-details');
+        songDetails.innerHTML = `
+          <strong>Song:</strong> ${song.title} <br>
+          <strong>Artist:</strong> ${song.subtitle} <br>
+          <img src="${song.images.coverart}" alt="Cover Art" width="100px" /> <br>
+          <audio controls>
+            <source src="${song.hub.actions[1]?.uri}" type="audio/mpeg">
+            Your browser does not support the audio element.
+          </audio>
+          <button onclick="promptPlaylist('${song.title}', '${song.subtitle}', '${song.hub.actions[1]?.uri}', '${song.images.coverart}')">❤️ Add to Playlist</button>
+        `;
+  
+        resultDiv.appendChild(songDetails);
+      });
+    }
+
+    function promptPlaylist(title, artist, audioUrl, coverArt) {
+      currentSong = { title, artist, audioUrl, coverArt };
+      
+      if (Object.keys(playlists).length === 0) {
+        alert('Please create a playlist first.');
+        return;
+      }
+
+      // Populate playlist dropdown
+      const playlistSelect = document.getElementById('playlist-select');
+      playlistSelect.innerHTML = Object.keys(playlists).map(playlistName => `<option value="${playlistName}">${playlistName}</option>`).join('');
+
+      // Show popup
+      document.getElementById('overlay').style.display = 'block';
+      document.getElementById('playlist-add-popup').style.display = 'block';
+    }
+
+    function addToPlaylist() {
+      const selectedPlaylistName = document.getElementById('playlist-select').value;
+      const playlist = playlists[selectedPlaylistName];
+
+      // Check if the song already exists in the selected playlist
+      if (playlist.some(song => song.title === currentSong.title)) {
+        alert('This song is already in the playlist.');
+      } else {
+        playlist.push(currentSong);
+        alert(`Song "${currentSong.title}" added to playlist "${selectedPlaylistName}".`);
+      }
+
+      hideAddPlaylistPopup();
+    }
+
+    function createPlaylist() {
+      const newPlaylistName = document.getElementById('new-playlist-name').value;
+      if (!newPlaylistName) {
+        alert('Please enter a playlist name.');
+        return;
+      }
+
+      playlists[newPlaylistName] = [];
+      updatePlaylistUI();
+      hideCreatePlaylistPopup();
+    }
+
+    function updatePlaylistUI() {
+      const playlistList = document.getElementById('playlist-list');
+      playlistList.innerHTML = Object.keys(playlists).map(playlistName => `
+        <div class="playlist">
+          <button onclick="showPlaylist('${playlistName}')">${playlistName}</button>
+        </div>
+      `).join('');
+    }
+
+    function showPlaylist(playlistName) {
+      const resultDiv = document.getElementById('result');
+      const searchInput = document.getElementById('song-input');
+      const searchButton = document.querySelector('button[onclick="searchSong()"]');
+      const searchIcon = document.getElementById('search-icon');
+
+      // Clear the search section
+      searchInput.style.display = 'none';
+      searchButton.style.display = 'none';
+      searchIcon.style.display = 'block';
+
+      // Display the selected playlist's songs
+      resultDiv.innerHTML = `<h2>${playlistName}</h2>`;
+      playlists[playlistName].forEach(song => {
+        const songDetails = document.createElement('div');
+        songDetails.classList.add('song-details');
+        songDetails.innerHTML = `
+          <strong>Song:</strong> ${song.title} <br>
+          <strong>Artist:</strong> ${song.artist} <br>
+          <img src="${song.coverArt}" alt="Cover Art" width="100px" /> <br>
+          <audio controls>
+            <source src="${song.audioUrl}" type="audio/mpeg">
+            Your browser does not support the audio element.
+          </audio>
+        `;
+        resultDiv.appendChild(songDetails);
+      });
+    }
+
+    function showSearch() {
+      const searchInput = document.getElementById('song-input');
+      const searchButton = document.querySelector('button[onclick="searchSong()"]');
+      const searchIcon = document.getElementById('search-icon');
+
+      searchInput.style.display = 'block';
+      searchButton.style.display = 'block';
+      searchIcon.style.display = 'none';
+    }
+
+    function showCreatePlaylistPopup() {
+      document.getElementById('overlay').style.display = 'block';
+      document.getElementById('playlist-popup').style.display = 'block';
+    }
+
+    function hideCreatePlaylistPopup() {
+      document.getElementById('overlay').style.display = 'none';
+      document.getElementById('playlist-popup').style.display = 'none';
+    }
+
+    function hideAddPlaylistPopup() {
+      document.getElementById('overlay').style.display = 'none';
+      document.getElementById('playlist-add-popup').style.display = 'none';
+    }
+
+  </script>
+</body>
+</html>
